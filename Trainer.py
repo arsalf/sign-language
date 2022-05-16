@@ -63,9 +63,6 @@ no_sequences = 10
 # Videos are going to be 30 frames in length
 sequence_length = 30
 
-# Folder start
-start_folder = 30
-
 for action in actions: 
     for sequence in range(no_sequences):
         try: 
@@ -73,7 +70,7 @@ for action in actions:
         except:
             pass
 
-cap = cv2.VideoCapture(1)
+camera = cv2.Videocamerature(1)
 # Set mediapipe model 
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     
@@ -86,7 +83,7 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
             for frame_num in range(sequence_length):
 
                 # Read feed
-                ret, frame = cap.read()
+                ret, frame = camera.read()
 
                 # Make detections
                 image, results = mediapipe_detection(frame, holistic)
@@ -119,8 +116,8 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
                 if cv2.waitKey(10) & 0xFF == ord('q'):
                     break
                     
-    cap.release()
+    camera.release()
     cv2.destroyAllWindows()
 
-# cap.release()
+# camera.release()
 # cv2.destroyAllWindows()
