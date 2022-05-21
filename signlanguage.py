@@ -20,6 +20,7 @@ class SignLanguage:
         self.actions = np.array(actions) # Actions that we try to detect        
         self.no_sequences = no_sequences # Thirty videos worth of data        
         self.sequence_length = sequence_length # Videos are going to be 30 frames in length
+        self.file_name = '-'.join([str(elem) for elem in actions])
         self.make_directory() #init directory
 
     def make_directory(self):
@@ -94,7 +95,7 @@ class SignLanguage:
         
         return output_frame
 
-    def trainer_realtime(self, file_name:str='action.h5'):
+    def realtime_trainer(self):
         camera = cv2.VideoCapture(1)
         # Set mediapipe model 
         with self.mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
@@ -171,7 +172,7 @@ class SignLanguage:
 
         res = model.predict(X_test)        
 
-        model.save(file_name)
+        model.save(self.file_name)
     
     def realtime_test(self, file_model:str):
         model = self.create_model()
