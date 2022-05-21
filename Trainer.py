@@ -5,6 +5,14 @@ from matplotlib import pyplot as plt
 import time
 import mediapipe as mp
 
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import LSTM, Dense
+from tensorflow.keras.callbacks import TensorBoard
+
+from sklearn.model_selection import train_test_split
+from tensorflow.keras.utils import to_categorical
+from sklearn.metrics import multilabel_confusion_matrix, accuracy_score
+
 mp_holistic = mp.solutions.holistic # Holistic model
 mp_drawing = mp.solutions.drawing_utils # Drawing utilities
 
@@ -55,7 +63,7 @@ def extract_keypoints(results):
 DATA_PATH = os.path.join('MP_Data') 
 
 # Actions that we try to detect
-actions = np.array(['hello', 'thanks', 'iloveyou'])
+actions = np.array(['Hello', 'Thanks', 'Ilovu'])
 
 # Thirty videos worth of data
 no_sequences = 10
@@ -70,7 +78,7 @@ for action in actions:
         except:
             pass
 
-camera = cv2.Videocamerature(1)
+camera = cv2.VideoCapture(1)
 # Set mediapipe model 
 with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
     
@@ -120,4 +128,142 @@ with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=
     cv2.destroyAllWindows()
 
 # camera.release()
+# cv2.destroyAllWindows()
+
+#STEP 6
+label_map = {label:num for num, label in enumerate(actions)}
+
+sequences, labels = [], []
+for action in actions:
+    for sequence in range(no_sequences):
+        window = []
+        for frame_num in range(sequence_length):
+            res = np.load(os.path.join(DATA_PATH, action, str(sequence), "{}.npy".format(frame_num)))
+            window.append(res)
+        sequences.append(window)
+        labels.append(label_map[action])
+
+X = np.array(sequences)
+y = to_categorical(labels).astype(int)
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.05)
+
+#STEP 7
+
+log_dir = os.path.join('Logs')
+tb_callback = TensorBoard(log_dir=log_dir)
+
+def initModel():    
+    model = Sequential()
+    model.add(LSTM(64, return_sequences=True, activation='relu', input_shape=(30,1662)))
+    model.add(LSTM(128, return_sequences=True, activation='relu'))
+    model.add(LSTM(64, return_sequences=False, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dense(32, activation='relu'))
+    model.add(Dense(actions.shape[0], activation='softmax'))
+    return model
+
+model = initModel()
+
+res = [.7, 0.2, 0.1]
+actions[np.argmax(res)]
+model.compile(optimizer='Adam', loss='categorical_crossentropy', metrics=['categorical_accuracy'])
+model.fit(X_train, y_train, epochs=2000, callbacks=[tb_callback])
+
+# #STEP 8
+res = model.predict(X_test)
+
+# #STEP 9
+model.save('action.h5')
+# # del model
+# model = initModel()
+# model.load_weights('action.h5')
+# # from keras.models import load_model
+# # from PIL import Image, ImageOps
+# # import numpy as np
+
+# # Load the model
+# # model = load_model('keras_model.h5')
+# #STEP 10
+# # yhat = model.predict(X_test)
+# # ytrue = np.argmax(y_test, axis=1).tolist()
+# # yhat = np.argmax(yhat, axis=1).tolist()
+
+# #STEP 11
+# colors = [(245,117,16), (117,245,16), (16,117,245)]
+
+# def prob_viz(res, actions, input_frame, colors):
+#     output_frame = input_frame.copy()
+#     for num, prob in enumerate(res):
+#         cv2.rectangle(output_frame, (0,60+num*40), (int(prob*100), 90+num*40), colors[num], -1)
+#         cv2.putText(output_frame, actions[num], (0, 85+num*40), cv2.FONT_HERSHEY_SIMPLEX, 1, (255,255,255), 2, cv2.LINE_AA)
+        
+#     return output_frame
+
+# # plt.figure(figsize=(18,18))
+# # plt.imshow(prob_viz(res, actions, image, colors))
+
+# # sequence.reverse()
+
+# # sequence.append('def')
+# # sequence.reverse()
+# # sequence[-30:]
+# # 1. New detection variables
+# sequence = []
+# sentence = []
+# threshold = 0.8
+
+# cap = cv2.VideoCapture(1)
+# # Set mediapipe model 
+# with mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
+#     while cap.isOpened():
+
+#         # Read feed
+#         ret, frame = cap.read()
+
+#         # Make detections
+#         image, results = mediapipe_detection(frame, holistic)
+#         print(results)
+        
+#         # Draw landmarks
+#         draw_styled_landmarks(image, results)
+        
+#         # 2. Prediction logic
+#         keypoints = extract_keypoints(results)
+# #         sequence.insert(0,keypoints)
+# #         sequence = sequence[:30]
+#         sequence.append(keypoints)
+#         sequence = sequence[-30:]
+        
+#         if len(sequence) == 30:
+#             res = model.predict(np.expand_dims(sequence, axis=0))[0]
+#             print(actions[np.argmax(res)])
+            
+            
+#         #3. Viz logic
+#             if res[np.argmax(res)] > threshold: 
+#                 if len(sentence) > 0: 
+#                     if actions[np.argmax(res)] != sentence[-1]:
+#                         sentence.append(actions[np.argmax(res)])
+#                 else:
+#                     sentence.append(actions[np.argmax(res)])
+
+#             if len(sentence) > 5: 
+#                 sentence = sentence[-5:]
+
+#             # Viz probabilities
+#             image = prob_viz(res, actions, image, colors)
+            
+#         cv2.rectangle(image, (0,0), (640, 40), (245, 117, 16), -1)
+#         cv2.putText(image, ' '.join(sentence), (3,30), 
+#                        cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2, cv2.LINE_AA)
+        
+#         # Show to screen
+#         cv2.imshow('OpenCV Feed', image)
+
+#         # Break gracefully
+#         if cv2.waitKey(10) & 0xFF == ord('q'):
+#             break
+#     cap.release()
+#     cv2.destroyAllWindows()
+# cap.release()
 # cv2.destroyAllWindows()
