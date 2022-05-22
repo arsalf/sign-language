@@ -11,6 +11,8 @@ from tensorflow.keras.callbacks import TensorBoard
 from sklearn.model_selection import train_test_split
 from tensorflow.keras.utils import to_categorical
 
+import random
+
 class SignLanguage:
 
     def __init__(self, data_path:str, actions:array, no_sequences:int=30, sequence_length:int=30):
@@ -20,7 +22,7 @@ class SignLanguage:
         self.actions = np.array(actions) # Actions that we try to detect        
         self.no_sequences = no_sequences # Thirty videos worth of data        
         self.sequence_length = sequence_length # Videos are going to be 30 frames in length
-        self.file_name = '-'.join([str(elem) for elem in actions])
+        self.file_name = 'model_sign_language.h5'
         self.make_directory() #init directory
 
     def make_directory(self):
@@ -95,9 +97,17 @@ class SignLanguage:
         
         return output_frame
 
-    def realtime_trainer(self):
-        camera = cv2.VideoCapture(1)
-        # Set mediapipe model 
+    def init_camera(self, src):
+        if src is None:            
+            camera = cv2.VideoCapture(1)
+        else:
+            camera = cv2.VideoCapture(src)
+        
+        return camera
+
+    def make_data_model(self, src=None):
+        camera = self.init_camera(src)
+        
         with self.mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
             # NEW LOOP
             # Loop through actions
@@ -144,18 +154,30 @@ class SignLanguage:
             camera.release()
             cv2.destroyAllWindows()
         
+
+    def realtime_trainer(self):
+        src=None
+        #self.make_data_model(src)
+        
+        #labelling for every actions
         label_map = {label:num for num, label in enumerate(self.actions)}
 
         sequences, labels = [], []
+
+        #get all npy data from videos
         for action in self.actions:
             for sequence in range(self.no_sequences):
                 window = []
                 for frame_num in range(self.sequence_length):
                     res = np.load(os.path.join(self.data_path, action, str(sequence), "{}.npy".format(frame_num)))
+                    print("====")
+                    print(os.path.join(self.data_path, action, str(sequence), "{}.npy".format(frame_num)))
+                    print("====")
                     window.append(res)
                 sequences.append(window)
                 labels.append(label_map[action])
         
+        #train model
         X = np.array(sequences)
         y = to_categorical(labels).astype(int)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.05)
@@ -172,19 +194,32 @@ class SignLanguage:
 
         res = model.predict(X_test)        
 
-        model.save(self.file_name)
+        #ssave model to .h5
+        model.save(os.path.join('models/')+self.file_name)
     
-    def realtime_test(self, file_model:str):
+    def make_colors(self):
+        colors = []
+        r, g, b = 0, 0, 0
+        for n_colour in range(len(self.actions)):
+            r = random.randrange(0, 255)
+            g = random.randrange(0, 255)
+            b = random.randrange(0, 255)
+            colors.append((r, g, b))
+
+        return colors
+
+    def realtime_test(self, file_model:str, src:str=None):
         model = self.create_model()
         model.load_weights(file_model)
 
-        colors = [(245,117,16), (117,245,16), (16,117,245)]
+        # colors = [(245,117,16), (117,245,16), (16,117,245)]
+        colors = self.make_colors()
 
         sequence = []
         sentence = []
         threshold = 0.8
 
-        cap = cv2.VideoCapture(1)
+        cap = self.init_camera(src)
         # Set mediapipe model 
         with self.mp_holistic.Holistic(min_detection_confidence=0.5, min_tracking_confidence=0.5) as holistic:
             while cap.isOpened():
